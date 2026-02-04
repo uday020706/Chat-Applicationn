@@ -1,0 +1,347 @@
+backend/models/Message.js
+chatId: { type: String, required: true },
+
+backend/routes/userRoutes.js
+import User from "../models/User.js";
+
+router.get("/", async (req, res) => {
+  const users = await User.find();
+  res.json(users);
+});
+
+
+ChatDashboard.jsx
+const [users, setUsers] = useState([]);
+const [selectedUser, setSelectedUser] = useState(null);
+
+useEffect(() => {
+  const fetchUsers = async () => {
+    const res = await fetch("http://localhost:5000/api/users");
+    const data = await res.json();
+    setUsers(data);
+  };
+
+  fetchUsers();
+}, []);
+
+---------------------
+<div
+  key={u._id}
+  onClick={() => setSelectedUser(u)}
+  className={`p-3 rounded-xl shadow cursor-pointer 
+  ${
+    selectedUser?.email === u.email
+      ? "bg-green-300 font-bold"
+      : "bg-white hover:bg-green-100"
+  }`}
+>
+  {u.email}
+</div>
+
+
+Replace header:
+
+<div className="p-4 border-b bg-white font-semibold">
+  Global Chat Room 🌍
+</div>
+
+Change to:
+<div className="p-4 border-b bg-white font-semibold">
+  {selectedUser
+    ? `Chat with ${selectedUser.email}`
+    : "Select a user to start chatting"}
+</div>
+
+
+
+const getChatId = (email1, email2) => {
+  return [email1, email2].sort().join("_");
+};
+
+
+const chatId = selectedUser
+  ? getChatId(auth.currentUser.email, selectedUser.email)
+  : "global";
+
+const sendMessage = () => {
+  if (!message.trim() || !chatId) return;
+
+  const msgData = {
+    chatId,
+    sender: auth.currentUser.email,
+    text: message,
+  };
+
+  socket.emit("sendMessage", msgData);
+
+  setMessage("");
+};
+
+
+useEffect(() => {
+  socket.on("receiveMessage", (msg) => {
+    if (msg.chatId === chatId) {
+      setMessages((prev) => [...prev, msg]);
+    }
+  });
+
+  return () => socket.off("receiveMessage");
+}, [chatId]);
+
+
+
+useEffect(() => {
+  if (chatId) {
+    socket.emit("joinRoom", chatId);
+
+    // Load messages for this room
+    fetch(`http://localhost:5000/api/messages/${chatId}`)
+      .then((res) => res.json())
+      .then((data) => setMessages(data));
+  }
+}, [chatId]);
+
+
+server.js in message.create
+chatId: message.chatId,
+
+const fetchMessages = async () => {
+  const res = await fetch(
+    `http://localhost:5000/api/messages/${chatId}`
+  );
+  const data = await res.json();
+  setMessages(data);
+};
+
+
+backend/routes/messageRoutes.js
+router.get("/:chatId", async (req, res) => {
+  const messages = await Message.find({
+    chatId: req.params.chatId,
+  }).sort({ createdAt: 1 });
+
+  res.json(messages);
+});
+
+
+
+
+io.on("connection", (socket) => {
+  console.log("✅ User Connected:", socket.id);
+
+  // ✅ Join Private Room
+  socket.on("joinRoom", (chatId) => {
+    socket.join(chatId);
+    console.log("📌 Joined Room:", chatId);
+  });
+
+  // ✅ Send Message Only to Room
+  socket.on("sendMessage", async (message) => {
+    await Message.create({
+      chatId: message.chatId,
+      sender: message.sender,
+      text: message.text,
+    });
+
+    io.to(message.chatId).emit("receiveMessage", message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ User Disconnected");
+  });
+});
+
+
+
+replace chat window :
+{/* ✅ Chat Window */}
+<div className="w-3/4 flex flex-col">
+
+  {/* ✅ If no user selected */}
+  {!selectedUser ? (
+    <div className="flex-1 flex flex-col justify-center items-center bg-gray-50">
+      <h2 className="text-2xl font-bold text-gray-600">
+        👋 Welcome to WhatsApp Clone
+      </h2>
+
+      <p className="mt-2 text-gray-500">
+        Select a user from the left sidebar to start chatting
+      </p>
+    </div>
+  ) : (
+    <>
+      {/* Header */}
+      <div className="p-4 border-b bg-white font-semibold">
+        Chat with {selectedUser.email}
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 p-4 overflow-y-scroll bg-gray-50 space-y-3">
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`p-3 rounded-xl w-fit ${
+              msg.sender === auth.currentUser.email
+                ? "ml-auto bg-green-300"
+                : "bg-white shadow"
+            }`}
+          >
+            <p className="text-sm font-bold">{msg.sender}</p>
+            <p>{msg.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t bg-white flex gap-2">
+        <input
+          type="text"
+          value={message}
+          placeholder="Type a message..."
+          className="flex-1 border rounded-xl px-4 py-2"
+          onChange={(e) => setMessage(e.target.value)}
+        />
+
+        <button
+          onClick={sendMessage}
+          className="bg-green-600 text-white px-6 rounded-xl"
+        >
+          Send
+        </button>
+      </div>
+    </>
+  )}
+</div>
+
+
+
+backend/models/User.js
+username: { type: String, required: true },
+
+frontend/src/pages/Register.jsx
+const [username, setUsername] = useState("");
+
+Add input field ABOVE email:
+<input
+  type="text"
+  placeholder="Username"
+  className="w-full p-3 border rounded-xl"
+  required
+  onChange={(e) => setUsername(e.target.value)}
+/>
+
+body: JSON.stringify({
+  firebaseUID: userCred.user.uid,
+  email: userCred.user.email,
+  username: username,
+}),
+
+
+backend/controllers/userController.js
+const { firebaseUID, email, username } = req.body;
+
+user = await User.create({
+  firebaseUID,
+  email,
+  username,
+});
+
+
+Currently you display:
+{u.email}
+
+Replace with:
+{u.username}
+
+const [currentUsername, setCurrentUsername] = useState("");
+
+
+useEffect(() => {
+  const fetchMe = async () => {
+    const res = await fetch("http://localhost:5000/api/users");
+    const data = await res.json();
+
+    const me = data.find(
+      (u) => u.email === auth.currentUser.email
+    );
+
+    if (me) setCurrentUsername(me.username);
+  };
+
+  fetchMe();
+}, []);
+
+
+Replace sendMessage sender:
+
+sender: auth.currentUser.email,
+
+Change to:
+sender: currentUsername,
+
+
+Replace:
+
+Chat with {selectedUser.email}
+
+Change to:
+Chat with {selectedUser.username}
+
+
+Replace:
+
+{u.username}
+
+
+With:
+
+{u.email === auth.currentUser.email ? "You" : u.username}
+
+
+
+<div
+  key={u._id}
+  onClick={() => setSelectedUser(u)}
+  className={`p-3 rounded-xl shadow cursor-pointer 
+  ${
+    selectedUser?.email === u.email
+      ? "bg-green-300 font-bold"
+      : "bg-white hover:bg-green-100"
+  }`}
+>
+  {u.email === auth.currentUser.email ? "You" : u.username}
+</div>
+
+
+
+Replace:
+
+<p className="text-sm font-bold">{msg.sender}</p>
+
+
+With:
+
+<p className="text-sm font-bold">
+  {msg.sender === currentUsername ? "You" : msg.sender}
+</p>
+
+
+Replace:
+
+msg.sender === auth.currentUser.email
+
+
+With:
+
+msg.sender === currentUsername
+
+
+<div
+  key={index}
+  className={`p-3 rounded-xl w-fit max-w-xs
+    ${
+      msg.sender === currentUsername
+        ? "ml-auto bg-green-300 text-right"
+        : "mr-auto bg-white shadow"
+    }`}
+>

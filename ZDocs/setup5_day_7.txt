@@ -1,0 +1,97 @@
+let onlineUsers = new Map();
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // ✅ User Online Event
+  socket.on("userOnline", (username) => {
+    onlineUsers.set(socket.id, username);
+
+    io.emit(
+      "onlineUsers",
+      [...new Set(onlineUsers.values())] // no duplicates
+    );
+  });
+
+  // ✅ Send Message
+  socket.on("sendMessage", async (msgData) => {
+    const newMessage = await Message.create({
+      chatId: msgData.chatId,
+      sender: msgData.sender,
+      text: msgData.text,
+    });
+
+    // ✅ Send only to that room (not global)
+    io.to(msgData.chatId).emit("receiveMessage", newMessage);
+  });
+
+  // ✅ Join Room for Private Chat
+  socket.on("joinRoom", (chatId) => {
+    socket.join(chatId);
+    console.log("Joined Room:", chatId);
+  });
+
+  // ✅ Disconnect Event
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+
+    onlineUsers.delete(socket.id);
+
+    io.emit(
+      "onlineUsers",
+      [...new Set(onlineUsers.values())]
+    );
+  });
+});
+
+
+useEffect(() => {
+  if (currentUsername) {
+    socket.emit("userOnline", currentUsername);
+  }
+}, [currentUsername]);
+
+
+const [onlineUsers, setOnlineUsers] = useState([]);
+
+useEffect(() => {
+  socket.on("onlineUsers", (users) => {
+    setOnlineUsers(users);
+  });
+
+  return () => socket.off("onlineUsers");
+}, []);
+
+
+
+useEffect(() => {
+  if (chatId !== "global") {
+    socket.emit("joinRoom", chatId);
+  }
+}, [chatId]);
+
+
+
+const sendMessage = () => {
+  if (!selectedUser) return; // ✅ stop global send
+  if (!message.trim()) return;
+
+
+  Replace header:
+
+Chat with {selectedUser.username}
+
+
+With:
+
+<div>
+  <p className="font-semibold">
+    Chat with {selectedUser.username}
+  </p>
+
+  <p className="text-sm text-gray-500">
+    {onlineUsers.includes(selectedUser.username)
+      ? "🟢 Online"
+      : "⚪ Offline"}
+  </p>
+</div>

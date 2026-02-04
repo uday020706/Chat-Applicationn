@@ -1,0 +1,272 @@
+cd frontend
+npm install socket.io-client
+cd backend
+npm install socket.io
+
+backend/server.js
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import http from "http";
+import { Server } from "socket.io";
+
+import connectDB from "./config/db.js";
+import userRoutes from "./routes/userRoutes.js";
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// ✅ MongoDB Connect
+connectDB();
+
+// Routes
+app.use("/api/users", userRoutes);
+
+app.get("/", (req, res) => {
+  res.send("Backend Running 🚀");
+});
+
+// ✅ Create HTTP Server
+const server = http.createServer(app);
+
+// ✅ Socket.IO Setup
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Socket Events
+io.on("connection", (socket) => {
+  console.log("✅ User Connected:", socket.id);
+
+  socket.on("sendMessage", (message) => {
+    console.log("📩 Message:", message);
+
+    // Broadcast to all users
+    io.emit("receiveMessage", message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ User Disconnected");
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+});
+
+
+frontend/src/pages/ChatDashboard.jsx
+import { useEffect, useState } from "react";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/firebaseConfig";
+
+import { io } from "socket.io-client";
+
+// ✅ Connect Backend Socket
+const socket = io("http://localhost:5000");
+
+export default function ChatDashboard() {
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+
+  // ✅ Receive Messages
+  useEffect(() => {
+    socket.on("receiveMessage", (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+
+    return () => socket.off("receiveMessage");
+  }, []);
+
+  // ✅ Send Message
+  const sendMessage = () => {
+    if (!message.trim()) return;
+
+    const msgData = {
+      user: auth.currentUser.email,
+      text: message,
+    };
+
+    socket.emit("sendMessage", msgData);
+
+    setMessage("");
+  };
+
+  // Logout
+  const logoutHandler = async () => {
+    await signOut(auth);
+  };
+
+  return (
+    <div className="h-screen flex">
+      {/* Sidebar */}
+      <div className="w-1/4 bg-gray-100 border-r p-4">
+        <h2 className="text-xl font-bold text-green-600">
+          WhatsApp Clone
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-600">
+          Logged in as:
+        </p>
+        <p className="font-semibold">{auth.currentUser.email}</p>
+
+        <button
+          onClick={logoutHandler}
+          className="mt-4 w-full bg-red-500 text-white py-2 rounded-xl"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Chat Window */}
+      <div className="w-3/4 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b bg-white font-semibold">
+          Global Chat Room 🌍
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 p-4 overflow-y-scroll bg-gray-50 space-y-3">
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={`p-3 rounded-xl w-fit ${
+                msg.user === auth.currentUser.email
+                  ? "ml-auto bg-green-300"
+                  : "bg-white shadow"
+              }`}
+            >
+              <p className="text-sm font-bold">{msg.user}</p>
+              <p>{msg.text}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t bg-white flex gap-2">
+          <input
+            type="text"
+            value={message}
+            placeholder="Type a message..."
+            className="flex-1 border rounded-xl px-4 py-2"
+            onChange={(e) => setMessage(e.target.value)}
+          />
+
+          <button
+            onClick={sendMessage}
+            className="bg-green-600 text-white px-6 rounded-xl"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+backend/models/Message.js
+import mongoose from "mongoose";
+
+const messageSchema = new mongoose.Schema(
+  {
+    sender: { type: String, required: true }, // email or UID
+    text: { type: String, required: true },
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model("Message", messageSchema);
+
+backend/controllers/messageController.js
+import Message from "../models/Message.js";
+
+// Save message
+export const saveMessage = async (req, res) => {
+  try {
+    const { sender, text } = req.body;
+
+    const message = await Message.create({
+      sender,
+      text,
+    });
+
+    res.status(201).json(message);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get all messages
+export const getMessages = async (req, res) => {
+  try {
+    const messages = await Message.find().sort({ createdAt: 1 });
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+backend/routes/messageRoutes.js
+import express from "express";
+import {
+  saveMessage,
+  getMessages,
+} from "../controllers/messageController.js";
+
+const router = express.Router();
+
+// Fetch all chat history
+router.get("/", getMessages);
+
+// Save new message
+router.post("/", saveMessage);
+
+export default router;
+
+backend/server.js
+import messageRoutes from "./routes/messageRoutes.js";
+app.use("/api/messages", messageRoutes);
+
+server.js
+import Message from "./models/Message.js";
+
+socket.on("sendMessage", async (message) => {
+  // Save in MongoDB
+  await Message.create({
+    sender: message.user,
+    text: message.text,
+  });
+
+  // Broadcast to all
+  io.emit("receiveMessage", message);
+});
+
+frontend/src/pages/ChatDashboard.jsx
+useEffect(() => {
+  // Load old messages
+  const fetchMessages = async () => {
+    const res = await fetch("http://localhost:5000/api/messages");
+    const data = await res.json();
+    setMessages(data.map((m) => ({
+      user: m.sender,
+      text: m.text,
+    })));
+  };
+
+  fetchMessages();
+
+  socket.on("receiveMessage", (msg) => {
+    setMessages((prev) => [...prev, msg]);
+  });
+
+  return () => socket.off("receiveMessage");
+}, []);

@@ -1,0 +1,335 @@
+cd frontend
+npm install -D tailwindcss@3 postcss autoprefixer
+npx tailwindcss init -p
+
+tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+
+
+src/index.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+src/components/AuthCard.jsx
+export default function AuthCard({ title, children }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="w-full max-w-md bg-white shadow-xl rounded-2xl p-8">
+        <h2 className="text-2xl font-bold text-center text-green-600">
+          {title}
+        </h2>
+
+        <div className="mt-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+src/pages/Register.jsx
+import { useState } from "react";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../firebase/firebaseConfig";
+import AuthCard from "../components/AuthCard";
+
+export default function Register() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const registerHandler = async (e) => {
+    e.preventDefault();
+
+    try {
+      // ✅ Step 1: Register in Firebase
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      alert("✅ Registered Successfully!");
+
+      // ✅ Step 2: Save user in MongoDB
+      await fetch("http://localhost:5000/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firebaseUID: userCred.user.uid,
+          email: userCred.user.email,
+        }),
+      });
+
+      console.log("✅ User saved in MongoDB!");
+
+    } catch (error) {
+      alert("❌ " + error.message);
+    }
+  };
+
+  return (
+    <AuthCard title="Create Account">
+      <form onSubmit={registerHandler} className="space-y-4">
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full p-3 border rounded-xl"
+          required
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full p-3 border rounded-xl"
+          required
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button className="w-full bg-green-600 text-white p-3 rounded-xl hover:bg-green-700">
+          Register
+        </button>
+      </form>
+    </AuthCard>
+  );
+}
+
+
+src/pages/Login.jsx
+import { useState } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../firebase/firebaseConfig";
+import AuthCard from "../components/AuthCard";
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const loginHandler = async (e) => {
+    e.preventDefault();
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      alert("✅ Login Successful!");
+    } catch (error) {
+      alert("❌ " + error.message);
+    }
+  };
+
+  return (
+    <AuthCard title="Welcome Back">
+      <form onSubmit={loginHandler} className="space-y-4">
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full p-3 border rounded-xl"
+          required
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full p-3 border rounded-xl"
+          required
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button className="w-full bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700">
+          Login
+        </button>
+      </form>
+    </AuthCard>
+  );
+}
+
+src/App.jsx
+import { useEffect, useState } from "react";
+import { auth } from "./firebase/firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+export default function App() {
+  const [user, setUser] = useState(null);
+
+  // ✅ Register page should show first
+  const [showLogin, setShowLogin] = useState(false);
+
+  useEffect(() => {
+    onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+  }, []);
+
+  if (user) {
+    return (
+      <h1 className="text-center mt-20 text-3xl font-bold text-green-600">
+        ✅ Logged in as {user.email}
+      </h1>
+    );
+  }
+
+  return (
+    <div>
+      {showLogin ? <Login /> : <Register />}
+
+      <p className="text-center mt-4">
+        {showLogin ? "New user?" : "Already have an account?"}
+
+        <button
+          className="ml-2 text-green-600 font-semibold"
+          onClick={() => setShowLogin(!showLogin)}
+        >
+          {showLogin ? "Register" : "Login"}
+        </button>
+      </p>
+    </div>
+  );
+}
+
+ChatDashboard.jsximport { signOut } from "firebase/auth";
+import { auth } from "../firebase/firebaseConfig";
+
+export default function ChatDashboard() {
+  const logoutHandler = async () => {
+    await signOut(auth);
+    alert("Logged out ✅");
+  };
+
+  return (
+    <div className="h-screen flex">
+
+      {/* ✅ Sidebar */}
+      <div className="w-1/4 bg-gray-100 border-r p-4">
+        <h2 className="text-xl font-bold text-green-600">
+          WhatsApp Clone
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-600">
+          Logged in as:
+        </p>
+        <p className="font-semibold">{auth.currentUser?.email}</p>
+
+        <button
+          onClick={logoutHandler}
+          className="mt-4 w-full bg-red-500 text-white py-2 rounded-xl"
+        >
+          Logout
+        </button>
+
+        {/* Chat List Placeholder */}
+        <div className="mt-6 space-y-3">
+          <div className="p-3 bg-white rounded-xl shadow">
+            Chat with User1
+          </div>
+          <div className="p-3 bg-white rounded-xl shadow">
+            Chat with User2
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Chat Window */}
+      <div className="w-3/4 flex flex-col">
+
+        {/* Header */}
+        <div className="p-4 border-b bg-white font-semibold">
+          Chat Window
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 p-4 overflow-y-scroll bg-gray-50">
+          <div className="mb-3">
+            <span className="bg-green-200 px-3 py-2 rounded-xl">
+              Hello 👋
+            </span>
+          </div>
+
+          <div className="mb-3 text-right">
+            <span className="bg-blue-200 px-3 py-2 rounded-xl">
+              Hi 😄
+            </span>
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t bg-white flex gap-2">
+          <input
+            type="text"
+            placeholder="Type a message..."
+            className="flex-1 border rounded-xl px-4 py-2"
+          />
+
+          <button className="bg-green-600 text-white px-6 rounded-xl">
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+BACKEND
+
+backend/models/User.js
+import mongoose from "mongoose";
+
+const userSchema = new mongoose.Schema(
+  {
+    firebaseUID: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model("User", userSchema);
+
+backend/controllers/userController.js
+import User from "../models/User.js";
+
+export const saveUser = async (req, res) => {
+  try {
+    const { firebaseUID, email } = req.body;
+
+    let user = await User.findOne({ firebaseUID });
+
+    if (user) {
+      return res.json({ message: "User already exists ✅", user });
+    }
+
+    user = await User.create({ firebaseUID, email });
+
+    res.status(201).json({ message: "User saved ✅", user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+backend/routes/userRoutes.js
+import express from "express";
+import { saveUser } from "../controllers/userController.js";
+
+const router = express.Router();
+
+router.post("/", saveUser);
+
+export default router;
+
+backend/server.js
+import userRoutes from "./routes/userRoutes.js";
+
+app.use("/api/users", userRoutes);
+

@@ -1,0 +1,65 @@
+Step-by-Step Correct Fix
+✅ 1. Frontend: Send Message as sender
+
+In ChatDashboard.jsx, replace:
+
+const msgData = {
+  user: auth.currentUser.email,
+  text: message,
+};
+
+Change to:
+const msgData = {
+  sender: auth.currentUser.email,
+  text: message,
+};
+
+✅ 2. Backend Socket Save Correctly
+
+In backend socket code:
+
+Replace:
+
+await Message.create({
+  sender: message.user,
+  text: message.text,
+});
+
+Change to:
+await Message.create({
+  sender: message.sender,
+  text: message.text,
+});
+
+✅ 3. Frontend UI Alignment Fix
+
+Replace this condition:
+
+msg.user === auth.currentUser.email
+
+Change to:
+msg.sender === auth.currentUser.email
+
+✅ 4. Frontend Display Fix
+
+Replace:
+
+<p className="text-sm font-bold">{msg.user}</p>
+
+Change to:
+<p className="text-sm font-bold">{msg.sender}</p>
+
+✅ 5. Fix Fetch History Mapping
+
+Currently:
+
+setMessages(data.map((m) => ({
+  user: m.sender,
+  text: m.text,
+})));
+
+Change to:
+setMessages(data.map((m) => ({
+  sender: m.sender,
+  text: m.text,
+})));

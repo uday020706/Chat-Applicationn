@@ -1,0 +1,181 @@
+cd backend
+npm init -y
+npm install express mongoose dotenv cors socket.io
+npm install nodemon --save-dev
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/chatapp
+
+backend/config/db.js
+import mongoose from "mongoose";
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+
+    console.log("✅ MongoDB Connected:", conn.connection.host);
+  } catch (error) {
+    console.log("❌ MongoDB Error:", error.message);
+    process.exit(1);
+  }
+};
+
+export default connectDB;
+
+backend/models/User.js
+import { Schema, model } from "mongoose";
+
+const userSchema = new Schema(
+  {
+    firebaseUID: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+  },
+  { timestamps: true }
+);
+
+export default model("User", userSchema);
+
+backend/server.js
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import connectDB from "./config/db.js";
+
+dotenv.config();
+
+console.log("✅ ENV Loaded");
+console.log("PORT =", process.env.PORT);
+console.log("MONGO_URI =", process.env.MONGO_URI);
+
+connectDB();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.send("🚀 Backend Running Successfully!");
+});
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`✅ Server started on http://localhost:${PORT}`);
+});
+
+
+
+frontend
+cd ..
+npm create vite@latest frontend
+cd frontend
+npm install
+npm run dev
+npm install firebase
+
+frontend/src/firebase/firebaseConfig.js
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
+
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_BUCKET",
+  messagingSenderId: "YOUR_ID",
+  appId: "YOUR_APP_ID",
+};
+
+const app = initializeApp(firebaseConfig);
+
+export const auth = getAuth(app);
+export const storage = getStorage(app);
+
+frontend/src/pages/Register.jsx
+import { useState } from "react";
+import { auth } from "../firebase/firebaseConfig";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+
+export default function Register() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const registerUser = async (e) => {
+    e.preventDefault();
+    await createUserWithEmailAndPassword(auth, email, password);
+    alert("User Registered Successfully ✅");
+  };
+
+  return (
+    <form onSubmit={registerUser}>
+      <h2>Register</h2>
+
+      <input
+        type="email"
+        placeholder="Enter Email"
+        onChange={(e) => setEmail(e.target.value)}
+      />
+
+      <input
+        type="password"
+        placeholder="Enter Password"
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      <button type="submit">Register</button>
+    </form>
+  );
+}
+
+frontend/src/pages/Login.jsx
+import { useState } from "react";
+import { auth } from "../firebase/firebaseConfig";
+import { signInWithEmailAndPassword } from "firebase/auth";
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const loginUser = async (e) => {
+    e.preventDefault();
+    await signInWithEmailAndPassword(auth, email, password);
+    alert("Login Successful ✅");
+  };
+
+  return (
+    <form onSubmit={loginUser}>
+      <h2>Login</h2>
+
+      <input
+        type="email"
+        placeholder="Enter Email"
+        onChange={(e) => setEmail(e.target.value)}
+      />
+
+      <input
+        type="password"
+               placeholder="Enter Password"
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      <button type="submit">Login</button>
+    </form>
+  );
+}
+
+frontend/src/App.jsx
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+export default function App() {
+  return (
+    <div>
+      <h1>Chat App</h1>
+      <Register />
+      <Login />
+    </div>
+  );
+}
+
+
+
